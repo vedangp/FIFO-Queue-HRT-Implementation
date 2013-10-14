@@ -20,28 +20,6 @@ struct class *my_dev_class;          /* Tie with the device model */
  */
 int hrt_open(struct inode *inode, struct file *file)
 {
-	struct HRT_dev *hrt_devp;
-	struct omap_dm_timer* timer;
-	
-	/* find the location for hrt_devp */
-	hrt_devp = container_of(inode->i_cdev, struct HRT_dev, cdev);
-	
-	/* make it accessible to other calls */
-	file->private_data = hrt_devp;
-	
-	/* Request a timer */
-	hrt_devp->timer = omap_dm_timer_request();	
-	
-	timer = hrt_devp->timer;
-	
-	/* set prescalar */
-	if(!omap_dm_timer_set_prescaler(timer, PRESCALAR))
-	{
-	    printk("prescaler not set.\n");
-	}
-	/* enable the timer */	
-	omap_dm_timer_enable(timer);
-	
 	printk("\n%s opened\n", hrt_devp->name);
 	return 0;
 }
@@ -51,13 +29,19 @@ int hrt_open(struct inode *inode, struct file *file)
  */
 int hrt_release(struct inode *inode, struct file *file)
 {
-	struct HRT_dev *hrt_devp = file->private_data;
-	struct omap_dm_timer *timer = hrt_devp->timer;
-	omap_dm_timer_disable(timer);
-	omap_dm_timer_free(timer);
 	printk("\n%s closed.\n",hrt_devp->name);
 	return 0;
 }
+
+/* 
+ * Get Time Stamp from the timer.
+ */
+int get_hrt_time_stamp(void)
+{
+	return omap_dm_timer_read_counter(timer);
+}
+EXPORT_SYMBOL_GPL(get_hrt_time_stamp);  
+
 
 /*
  * Read to g driver
@@ -67,20 +51,12 @@ ssize_t hrt_read(struct file *file, char *buf,
 {
 	int res;
 	unsigned int timer_value;
-	struct HRT_dev* hrt_devp;
-	
-	/* Accessing the device specific struct stored in file->private_data */
-	hrt_devp = file->private_data;
-    
 	/* get the current value of the timer */
-	timer_value = omap_dm_timer_read_counter(hrt_devp->timer);
+	timer_value = get_hrt_time_stamp();
 	
-	/* check whether the user space buffer is writable */
-	if(!access_ok(VERIFY_WRITE,buf,sizeof(unsigned int)))
-		return -EPERM;	
-
 	/* copying data to user space buffer. */
-	if(res = __put_user(timer_value, buf))
+	res = put_user(timer_value,(unsigned int *) buf);
+	if(res)
 	{
 		return -EFAULT;
 	}
@@ -90,12 +66,6 @@ ssize_t hrt_read(struct file *file, char *buf,
 
 long hrt_ioctl(struct file* file,unsigned int cmd, unsigned long arg)
 {
-	struct HRT_dev* hrt_devp;
-	struct omap_dm_timer* timer;
-	/* Accessing the device specific struct stored in file->private_data */
-	hrt_devp = file->private_data;
-	timer = hrt_devp->timer;
-
 	switch(cmd)
 	{
 		case CMD_START_TIMER:
@@ -149,6 +119,17 @@ static int __init hello_init(void)
 	/* Allocate memory for the per-device structure */
 	hrt_devp = kmalloc(sizeof(struct HRT_dev), GFP_KERNEL);
 
+	/* Allocate memory for the timer */
+	timer = kmalloc(sizeof(struct omap_dm_timer), GFP_KERNEL);
+	
+	/* Request a timer */
+	timer = omap_dm_timer_request();	
+ 
+	/* Set timer source */
+	omap_dm_timer_set_source(timer,OMAP_TIMER_SRC_SYS_CLK);
+	
+	/* enable the timer */	
+	omap_dm_timer_enable(timer);
 	
 	/* Request I/O region */
 	sprintf(hrt_devp->name, DEVICE_NAME); 
@@ -178,6 +159,9 @@ static int __init hello_init(void)
 static void __exit hello_exit(void)
 {
 	
+	omap_dm_timer_disable(timer);
+	omap_dm_timer_free(timer);
+
 	/* Release the major number */
 	unregister_chrdev_region((my_dev_number), 1);
 
@@ -185,7 +169,7 @@ static void __exit hello_exit(void)
 	device_destroy (my_dev_class, MKDEV(MAJOR(my_dev_number), 0));
 	cdev_del(&hrt_devp->cdev);
 	kfree(hrt_devp);
-	
+	kfree(timer);
 	/* Destroy driver_class */
 	class_destroy(my_dev_class);
 

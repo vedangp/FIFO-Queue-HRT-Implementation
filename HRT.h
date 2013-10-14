@@ -10,7 +10,9 @@
 struct HRT_dev {
 	struct cdev cdev;
 	char name[20];
-	struct omap_dm_timer *timer;		
 	size_t size;
 } *hrt_devp;
 
+struct omap_dm_timer* timer;
+
+int get_hrt_time_stamp(void);

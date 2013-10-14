@@ -1,0 +1,7 @@
+==README file for Assignment== 
+To compile both the modules and the user application just run make. 
+To clean run -- make clean
+To Run:
+1. First install HRT.ko module using insmod.
+2. Then install insmod.ko using insmod.
+3. run the user application using ./squeue_test. 
