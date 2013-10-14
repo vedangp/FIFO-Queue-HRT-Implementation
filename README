@@ -1,4 +1,18 @@
-==README file for Assignment== 
+Introduction
+============
+
+This projects implements 2 drivers providing the following features - a High Resolution Timer and a circular
+which can store 4 time-stamps and a variable length string varing from 10 to 80 characters. 
+
+Hardware Required 
+=================
+
+The High Resolution Timer uses one of the GP Timers available on TI's DM 3730 Digital Media processor (found on BeagleBoard 
+ xM Rev C). The timer provides a resolution of upto 1ns. 
+
+Instructions
+============
+
 To compile both the modules and the user application just run make. 
 To clean run -- make clean
 To Run:
